@@ -11,12 +11,13 @@ Internal
 """
 
 class Extended:
-    def __init__(self, extended_pair, dindex):
+    def __init__(self, extended_pair, dindex, qindex):
         """
         @brief: Hold the extended pair and where it was found in the database.
         """
         self.extended_pair = extended_pair
         self.dindex = dindex
+        self.qindex = qindex
     
     def __str__(self):
         return str(self.__dict__)
@@ -81,15 +82,16 @@ def extend_and_score(pair: AdjacentPair,
 
     # the left-most index in the database
     dindex: int = copy(dexindex)
+    qindex: int = copy(qexindex)
     
     # extend left pair to the right
     qexindex = qleftindex + pair.length - 1
     dexindex = dleftindex + pair.length - 1
-    while qexindex + 1 < qrightindex:
+    while qexindex + 1 < qrightindex and dexindex + 1 < drightindex:
         qexindex += 1
         dexindex += 1
         qextended = qextended + query[qexindex]
-        dextended = dextended + data[dexindex]
+        dextended = dextended + data[dexindex] # OOB issue
     
     # extend right with gaps until qextended aligns with data
     while dexindex + 1 < drightindex:
@@ -119,7 +121,7 @@ def extend_and_score(pair: AdjacentPair,
         print(f"Data Ext:\t{dextended}")
         print(f"Quer Ext:\t{qextended}")
     
-    return Extended(qextended, dindex)
+    return Extended(qextended, dindex, qindex)
 
 """
 External
@@ -149,23 +151,22 @@ def extend_filter(pairs: Dict[str, Dict[str, List[AdjacentPair]]],
         temp = defaultdict(list)
         for qname, adjacent_pairs in queries.items():
             for adjacent_pair in adjacent_pairs:
-                try:
-                    extended_pair = extend_and_score(
-                        adjacent_pair,
-                        query[qname],
-                        data[dname],
-                        match,
-                        mismatch,
-                        gap,
-                        minscore,
-                        score=False,
-                        printing=False
-                    )
-                except:
-                    pass
+                extended_pair = extend_and_score(
+                    adjacent_pair,
+                    query[qname],
+                    data[dname],
+                    match,
+                    mismatch,
+                    gap,
+                    minscore,
+                    score=False,
+                    printing=False
+                )
                 # the word scored above minscore and is not None
                 if extended_pair:
-                    temp[qname].append(extended_pair)
+                    # don't add repeat extended_pairs
+                    if not any(extended_pair.dindex == ep.dindex for ep in temp[qname]):
+                        temp[qname].append(extended_pair)
         # temp has items in it, so record it
         if temp:
             result[dname] = dict(temp)

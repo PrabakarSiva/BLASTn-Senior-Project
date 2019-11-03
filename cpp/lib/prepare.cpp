@@ -1,68 +1,99 @@
+#include <algorithm>
 #include <fstream>
+
 #include "prepare.hpp"
 #include "split.hpp"
+#include "../util/display.hpp"
 
-Blastn::SequenceMap build_sequence(string path, char sep)
+namespace Blastn {
+
+SequenceMap build_sequence(string path, char sep)
 {
-	Blastn::SequenceMap result;
-	string name, line;
-	std::ifstream sequence_file{ path };
+    SequenceMap result;
+    string name, line;
+    std::ifstream sequence_file{ path };
 
-	if (!sequence_file.is_open()) {
-		std::cout << "Failure: Could not open: " << path << std::endl;
-		exit(-1);
-	}
+    if (!sequence_file.is_open()) {
+        std::cerr << "Failure: Could not open: " << path << std::endl;
+        std::exit(-1);
+    }
 
-	while (std::getline(sequence_file, line)) {
-		// a new sequence name is found
-		if (line[0] == sep) {
-			// set the new name (sep char is length 1)
-			name = line.substr(1, line.length());
-			
-			// pair the sequence name with an empty build string
-			result.insert(std::pair<string, string>{ name, "" });
-		}
-		// the if statement MUST have been entered first
-		else {
-			// append the next line of sequence data to the build string
-			result.at(name).append(line);
-		}
-	}
+    while (std::getline(sequence_file, line)) {
+        // a new sequence name is found
+        if (line[0] == sep) {
+            // set the new name (sep char is length 1)
+            name = line.substr(1, line.size());
+            // no newlines in names
+            name.erase(std::remove(name.begin(), name.end(), '\r'), name.end());
+            name.erase(std::remove(name.begin(), name.end(), '\n'), name.end());
+            
+            // pair the sequence name with an empty build string
+            result[name] = "";
+        }
+        // the if statement MUST have been entered first
+        else {
+            // no newlines in entries
+            line.erase(std::remove(line.begin(), line.end(), '\r'), line.end());
+            line.erase(std::remove(line.begin(), line.end(), '\n'), line.end());
+            // append the next line of sequence data to the build string
+            result[name].append(line);
+        }
+    }
 
-	return result;
+    return result;
 }
 
-Blastn::IndexedSequenceMap split_sequence(Blastn::SequenceMap& data, u32 length)
+IndexedSequenceMap split_sequence(SequenceMap& data, u32 length)
 {
-	Blastn::IndexedSequenceMap result;
+    IndexedSequenceMap result;
+    Progress progress{ data.size() };
 
-	// traverse the sequence
-	for (auto name_seq = data.begin(); name_seq != data.end(); ++name_seq) {
-		// get all words and find their indices in that data set
-		Blastn::IndexedWordMap indexed_words;
-		vector<string> words = split_to_words(name_seq->second, length);
+    // traverse the sequence
+    for (auto& name_seqmap : data) {
+        // get all words and find their indices in that data set
+        IndexedWordMap indexed_words;
+        vector<string> words = split_to_words(name_seqmap.second, length);
 
-		// map each word to all of their indices each time the word appears
-		for (u32 i = 0; i < words.size(); i++) {
-			// insert the index if the item doesn't exist
-			if (indexed_words.find(words[i]) == indexed_words.end()) {
-				indexed_words.insert(std::pair<string, vector<u32>>{ words[i], vector<u32>{ i } });
-			}
-			// append the index if the item already exists
-			else {
-				indexed_words.at(words[i]).push_back(i);
-			}
-		}
-		result.insert(std::pair<string, Blastn::IndexedWordMap>{ name_seq->first, indexed_words });
-	}
+        // map each word to all of their indices each time the word appears
+        for (u32 i = 0; i < words.size(); i++) {
 
-	return result;
+            // no newlines in sequences
+            string temp = words[i];
+            if (temp.rfind('\r') == temp.size() - 1)
+                temp = temp.substr(0, temp.size() - 1);
+            if (temp.rfind('\n') == temp.size() - 1)
+                temp = temp.substr(0, temp.size() - 1);
+
+            // insert the index if the item doesn't exist
+            if (indexed_words.find(temp) == indexed_words.end())
+                indexed_words[temp] = vector<u32>{};
+
+            // append the index
+            indexed_words[temp].push_back(i);
+        }
+        result[name_seqmap.first] = indexed_words;
+        
+        progress.update();
+    }
+
+    return result;
 }
 
-Blastn::IndexedSequenceMap prepare_sequence(string path, u32 length, char sep)
+IndexedSequenceMap prepare_sequence(string path, u32 length, char sep)
 {
-	Blastn::SequenceMap built_data = build_sequence(path, sep);
-	Blastn::IndexedSequenceMap indexed_data = split_sequence(built_data, length);
+    SequenceMap built_data = build_sequence(path, sep);
+    IndexedSequenceMap indexed_data = split_sequence(built_data, length);
 
-	return indexed_data;
+    return indexed_data;
 }
+
+size_t sequence_length(SequenceMap& data)
+{
+    size_t result = 0;
+    for (auto& id_seq : data) {
+        result += id_seq.second.size();
+    }
+    return result;
+}
+
+} // Blastn

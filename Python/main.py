@@ -1,9 +1,10 @@
 from sys import argv
 from typing import Dict, List
 import tqdm
-
+#from memory_profiler import profile
 from lib import *
 
+#@profile
 def blastn(query_file, data_file, split_len, minscore, dust_threshold, sw_match, sw_mismatch, sw_gap):
     # format data into a dictionary
     # {name : {word : [indices], word : [indices], ...}, ...}
@@ -16,6 +17,7 @@ def blastn(query_file, data_file, split_len, minscore, dust_threshold, sw_match,
     print('Formatting Data...')
     data: Dict[str, str] \
         = build_sequence(path=data_file)
+    #data = filter_short(query, data)
     prepared_data: Dict[str, Dict[str, List[int]]] \
         = split_sequence(data=data,
                          length=split_len)
@@ -77,10 +79,10 @@ def blastn(query_file, data_file, split_len, minscore, dust_threshold, sw_match,
     for data_name, queries in tqdm.tqdm(sorted_epairs.items()):
         for query_name, epairs in queries.items():
             for epair in epairs:
-                builder += ("-" * 50) + "\n" \
+                builder += "\n" \
                         +  f"Smith-Waterman Score: {epair.score}\n" \
                         +  f"Hit at {data_name}[{epair.dindex}]:\n\t{data[data_name][epair.dindex:len(epair.extended_pair)]}\n" \
-                        +  f"Matched with {query_name}\n" \
+                        +  f"Match at {query_name}[{epair.qindex}]\n" \
                         +  f"Extended HSP:\n\t{epair.extended_pair}\n"
     with open('blastn_out.txt', 'w') as blastn_out:
         blastn_out.write(builder)
@@ -99,7 +101,7 @@ if __name__ == '__main__':
     data_file = "../data/Gn-SRR7236689_contigs.fasta"
     split_len = 11
     # if below, sw removes
-    minscore = 20
+    minscore = 22
     # if above, dust removes
     dust_threshold = 1
     sw_match = 2

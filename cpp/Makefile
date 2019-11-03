@@ -1,29 +1,17 @@
 TARGET=blastn
-CC=g++
-CPPFLAGS=-std=c++17
+CXX=g++
+# C++ 17, Warnings, Optimizations
+CXXFLAGS=-std=c++17 -Wall -Wextra -O3 -lm -lpthread -fopenmp
+OBJ_FILES=lib/blastn.o lib/dust.o lib/extend.o lib/hsp.o lib/interface.o \
+		  lib/match.o lib/output.o lib/pairs.o lib/prepare.o \
+		  lib/smith_waterman.o lib/sort.o lib/split.o \
+		  util/display.o util/globals.o util/test.o util/types.o \
+		  main.o
 
-DUSTF=lib/dust
-EXTENDF=lib/extend
-MATCHF=lib/match
-PREPAREF=lib/prepare
-SMTHWF=lib/smith_waterman
-SPLITF=lib/split
+.PHONY: clean
 
-GLOBALSF=util/globals
-TYPESF=util/types
-TESTF=util/test
+$(TARGET) : $(OBJ_FILES)
+	$(CXX) -o $(TARGET) $(OBJ_FILES) $(CXXFLAGS)
 
-MAINF=main
-
-FILES=$(TYPESF).cpp \
-	$(SMTHWF).cpp $(SPLITF).cpp \
-	$(PREPAREF).cpp $(DUSTF).cpp $(MATCHF).cpp $(EXTENDF).cpp \
-	$(TESTF).cpp $(GLOBALSF).cpp \
-	$(MAINF).cpp
-
-.PHONY: all clean
-
-all:
-	$(CC) -o $(TARGET) $(FILES) $(CPPFLAGS)
 clean:
-	rm $(TARGET) $(OBJS) core
+	rm -rf $(TARGET) $(OBJ_FILES)

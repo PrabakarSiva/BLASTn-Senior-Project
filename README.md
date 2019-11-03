@@ -1,12 +1,27 @@
 # Blastn
-An implementation of the basic local alignment search tool
-(BLAST) algorithm on an FPGA to hardware accelerate the process.
+An implementation of the basic local alignment search tool (Blast) for nucleotides. The goal of this project is to implement the Blastn algorithm in C++ and interop with an FPGA implementation of the Smith-Waterman algorithm to greatly accelerate the word extension stage of Blastn.
 
 ![Blastn Process](blastn-flowchart.png)
 
+## Building and Running
+### Docker
+Run `docker build -t blastn .` to create the environment with all necessary dependencies. Blastn will be placed under /root.
+### C++
+See the [C++ README.md](cpp/README.md)
+
+## Dependencies
+* Python
+  * python 3.6+
+  * pip3
+  * numpy
+  * tqdm
+* C++
+  * c++17
+  * g++ 7.4+
+  * GNU Make 4.2.1+
+
 ## Members
-Electrical and Computer Engineering Senior Project
-at California State Polytechnic University, Pomona
+Electrical and Computer Engineering Senior Project at California State Polytechnic University, Pomona
 - Alden Param
 - Alex Chan
 - Hmayak Apetyan
@@ -17,15 +32,3 @@ at California State Polytechnic University, Pomona
 ## Advisors
 - Mohamed El-Hadedy (Mohamed Aly)
 - Mostafa M. Hashim Ellabaan
-
-## Requirements
-The first implementation will be in Python 3 and uses the
-standard built in Python libraries.
-
-# To Do
-* Python
-  * Pair adjacent matches
-  * Sort extended matches
-* C++
-  * Implement Python to C++
-  * Implement OpenCL

@@ -1,143 +1,189 @@
 #include "extend.hpp"
 #include "smith_waterman.hpp"
+#include "../util/display.hpp"
+
+namespace Blastn {
 
 #define MIN(v1, v2) (((v1) > (v2)) ? (v2) : (v1))
 #define MAX(v1, v2) (((v1) < (v2)) ? (v2) : (v1))
 
 /* 
- *        ex) Query: G'TC'TGAA'CT'GAGC
- *            Data:  AG'TC'TGATGA'CT'GGGGAACTCGA
+ *        ex) Query:     G'TC'TGAA'CT'GAGC
+ *            Subject:  AG'TC'TGATGA'CT'GGGGAACTCGA
  *            Left Word:  'TC'
  *            Right Word: 'CT'
  * 
  *            Steps:
- *          1. Query: G'TC'                 -> score high enough? (extend left)
- *             Data:  G'TC'
- *          2. Query: G'TC'T                -> score high enough? (extend right)
- *             Data: G'TC'T
- *          3. Query: G'TC'TGAA             -> score high enough? (extend right more...)
- *             Data:  G'TC'TGAT
- *          4. Query: G'TC'TGAA--           -> score high enough? (add gaps)
- *             Data:  G'TC'TGATGA
- *          5. Query: G'TC'TGAA--'CT'       -> score high enough? (add right word)
- *             Data:  G'TC'TGATGA'CT'
- *          6. Query: G'TC'TGAA--'CT'GAGC   -> score high enough? (extend right more...)
- *             Data:  G'TC'TGATGA'CT'GGGG
+ *          1. Query:    G'TC'                 -> score high enough? (extend left)
+ *             Subject:  G'TC'
+ *          2. Query:    G'TC'T                -> score high enough? (extend right)
+ *             Subject:  G'TC'T
+ *          3. Query:    G'TC'TGAA             -> score high enough? (extend right more...)
+ *             Subject:  G'TC'TGAT
+ *          4. Query:    G'TC'TGAA--           -> score high enough? (add gaps)
+ *             Subject:  G'TC'TGATGA
+ *          5. Query:    G'TC'TGAA--'CT'       -> score high enough? (add right word)
+ *             Subject:  G'TC'TGATGA'CT'
+ *          6. Query:    G'TC'TGAA--'CT'GAGC   -> score high enough? (extend right more...)
+ *             Subject:  G'TC'TGATGA'CT'GGGG
  *          7. Done!
  */
 
+static inline s32 sw_score(string qextended, string sextended, s32 match, s32 mismatch, s32 gap, u32 flag)
+{
+    switch (flag) {
+        case SW::NO_PRESERVE_MEM:
+            return smith_waterman_no_preserve(qextended, sextended, match, mismatch, gap);
+        case SW::PRESERVE_MEM:
+            //return smith_waterman_preserve(qextended.c_str(), sextended.c_str(), match, mismatch, gap, nullptr, sextended.size() + 1, qextended.size() + 1);
+            return 0;
+        case SW::MULTI_THREAD:
+            return smith_waterman_mt(qextended, sextended, match, mismatch, gap);
+        case SW::FPGA:
+            //smith_waterman_fpga(qextended.c_str(), sextended.c_str(), match, mismatch, gap, sextended.size() + 1, qextended.size() + 1);
+            return 0;
+        default:
+            std::cerr << "Error: Invalid flag for Extending " << flag << std::endl;
+            std::exit(-1);
+    }
+}
+
 Extended extend_and_score(AdjacentPair pair,
-                          string query,
-                          string data,
+                          string& query,
+                          string& subject,
                           s32 match,
                           s32 mismatch,
                           s32 gap,
-                          s32 minscore,
+                          f32 ratio,
                           bool score,
-                          bool printing)
+                          bool printing,
+                          u32 flag)
 {
     // find left most indices
-	u32 dleftindex  = MIN(pair.dindex1, pair.dindex2);
-	u32 qleftindex  = MIN(pair.qindex1, pair.qindex2);
-	u32 drightindex = MAX(pair.dindex1, pair.dindex2);
-	u32 qrightindex = MAX(pair.qindex1, pair.qindex2);
+    u32 sleftindex  = MIN(pair.sindex1, pair.sindex2);
+    u32 qleftindex  = MIN(pair.qindex1, pair.qindex2);
+    u32 srightindex = MAX(pair.sindex1, pair.sindex2);
+    u32 qrightindex = MAX(pair.qindex1, pair.qindex2);
 
     // build string
     string qextended = query.substr(qleftindex, pair.length);
-    string dextended = data.substr(dleftindex, pair.length);
+    string sextended = subject.substr(sleftindex, pair.length);
+
+    // running Smith Waterman score
+    s32 running_score = 0;
 
     // extend left
-	s32 qexindex = qleftindex;
-	s32 dexindex = dleftindex;
-    while (qexindex - 1 >= 0 && dexindex - 1 >= 0) {
-		qexindex--; dexindex--;
+    s32 qexindex = qleftindex;
+    s32 sexindex = sleftindex;
+    while (qexindex - 1 >= 0 && sexindex - 1 >= 0) {
+        qexindex--; sexindex--;
         qextended = query[qexindex] + qextended;
-        dextended = data[dexindex] + dextended;
-        if (score && smith_waterman(qextended, dextended, match, mismatch, gap, true) < minscore)
-        {
-			return Extended{ Blastn::Invalid, -1 };
+        sextended = subject[sexindex] + sextended;
+
+        if (score) {
+            running_score = sw_score(qextended, sextended, match, mismatch, gap, flag);
+
+            if (running_score < ratio * qextended.size() * match)
+                return Extended{ Invalid, 0, 0, 0 };
         }
     }
 
-	// the left-most index in the database
-	int dindex = dexindex;
-	
+    // the left-most index in the subject
+    u32 sindex = (u32)sexindex;
+    u32 qindex = (u32)qexindex;
+    
     // extend left pair to the right
     qexindex = qleftindex + pair.length - 1;
-    dexindex = dleftindex + pair.length - 1;
-    while ((u32)qexindex + 1 < qrightindex) {
-		qexindex++; dexindex++;
+    sexindex = sleftindex + pair.length - 1;
+    while ((u32)qexindex + 1 < qrightindex && (u32)sexindex + 1 < srightindex) {
+        qexindex++; sexindex++;
         qextended = qextended + query[qexindex];
-        dextended = dextended + data[dexindex];
+        sextended = sextended + subject[sexindex];
     }
 
-    // extend right with gaps until qextended aligns with data
-    while ((u32)dexindex + 1 < drightindex) {
-		qexindex++; dexindex++;
-        qextended = qextended + Blastn::SGap;
-        dextended = dextended + data[dexindex];
+    // extend right with gaps until qextended aligns with subject
+    while ((u32)sexindex + 1 < srightindex) {
+        qexindex++; sexindex++;
+        qextended = qextended + SGap;
+        sextended = sextended + subject[sexindex];
     }
 
     // append the right pair
     qextended = qextended + query.substr(qrightindex, pair.length);
-    dextended = dextended + data.substr(drightindex, pair.length);
+    sextended = sextended + subject.substr(srightindex, pair.length);
 
     // extend right
     qexindex = qrightindex + pair.length - 1;
-    dexindex = drightindex + pair.length - 1;
-    while (qexindex + 1 < query.size() && dexindex + 1 < data.size()) {
-		qexindex++; dexindex++;
+    sexindex = srightindex + pair.length - 1;
+    while ((s32)(qexindex + 1) < (s32)query.size() && (s32)(sexindex + 1) < (s32)subject.size()) {
+        qexindex++; sexindex++;
         qextended = qextended + query[qexindex];
-        dextended = dextended + data[dexindex];
-        if (score && smith_waterman(qextended, dextended, match, mismatch, gap, true) < minscore)
-        {
-			return Extended{ Blastn::Invalid, -1 };
+        sextended = sextended + subject[sexindex];
+
+        if (score) {
+            running_score = sw_score(qextended, sextended, match, mismatch, gap, flag);
+
+            if (running_score < ratio * qextended.size() * match)
+                return Extended{ Invalid, 0, 0, 0 };
         }
     }
 
     if (printing) {
-        std::cout << "Data Ext:\t" << dextended << std::endl;
+        std::cout << "Subject Ext:\t" << sextended << std::endl;
         std::cout << "Quer Ext:\t" << qextended << std::endl;
     }
-	return Extended{ qextended, dindex };
+    return Extended{ qextended, sindex, qindex, running_score };
 }
 
-Blastn::ExtendedSequenceMap extend_filter(Blastn::PairedSequenceMap& pairs,
-										  Blastn::SequenceMap& query,
-										  Blastn::SequenceMap& data,
-										  s32 minscore,
-										  s32 match,
-										  s32 mismatch,
-										  s32 gap)
+ExtendedSequenceMap extend_filter(PairedSequenceMap& pairs,
+                                  SequenceMap& query,
+                                  SequenceMap& subject,
+                                  s32 match,
+                                  s32 mismatch,
+                                  s32 gap,
+                                  f32 ratio)
 {
-	Blastn::ExtendedSequenceMap result;
-	for (auto dname_quermap = pairs.begin(); dname_quermap != pairs.end(); ++dname_quermap) {
-		Blastn::ExtendedPairsMap temp;
-		for (auto qname_pairvec = dname_quermap->second.begin();
-				  qname_pairvec != dname_quermap->second.end();
-			    ++qname_pairvec)
-		{
-			for (auto adjacent_pair : qname_pairvec->second) {
+    ExtendedSequenceMap result;
+    bool found = false;
+    Progress progress{ pairs.size() };
 
-				Extended ext = extend_and_score(adjacent_pair,
-												query[qname_pairvec->first],
-												data[dname_quermap->first],
-												match, mismatch, gap, minscore, true, false);
-				// the word scored above the minscore
-				if (ext.extended_pair != Blastn::Invalid) {
-					// no items in the vector of Extended pairs
-					if (temp.find(qname_pairvec->first) == temp.end()) {
-						temp[qname_pairvec->first] = vector<Extended>{ ext };
-					}
-					// at least one item in the vector of Extended pairs
-					else {
-						temp[qname_pairvec->first].push_back(ext);
-					}
-				}
-			}
-		}
-		if (!temp.empty())
-			result[dname_quermap->first] = temp;
-	}
-	return result;
+    for (auto& sname_quermap : pairs) {
+        ExtendedPairsMap temp;
+        for (auto& qname_pairvec : sname_quermap.second) {
+            for (auto adjacent_pair : qname_pairvec.second) {
+
+                Extended ext = extend_and_score(adjacent_pair,
+                                                query[qname_pairvec.first],
+                                                subject[sname_quermap.first], // sw?  print? flag?
+                                                match, mismatch, gap, ratio,   true, false, SW::NO_PRESERVE_MEM);
+                // the word scored above the minscore
+                if (ext.extended_pair == Invalid)
+                    continue;
+                
+                // check to see if the extended pair was recored yet
+                found = false;
+                for (auto& e : temp[qname_pairvec.first]) {
+                    if (ext.sindex == e.sindex) {
+                        found = true;
+                        break;
+                    }
+                }
+                // skip if the same pair was already found
+                if (found)
+                    continue;
+
+                // no items in the vector of Extended pairs
+                if (temp.find(qname_pairvec.first) == temp.end())
+                    temp[qname_pairvec.first] = vector<Extended>{};
+                temp[qname_pairvec.first].push_back(ext);
+            }
+        }
+        if (!temp.empty())
+            result[sname_quermap.first] = temp;
+
+        progress.update();
+    }
+    return result;
 }
+
+} // Blastn
