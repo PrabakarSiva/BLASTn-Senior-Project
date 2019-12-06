@@ -8,6 +8,9 @@
 
 namespace Blastn {
 
+extern bool UArtFPGA;           // use the FPGA through UART
+extern string UArtPath;
+
 extern char Seperator;          // .fa and .fasta line seperator
 extern u32 SplitLength;         // word length
 
@@ -23,10 +26,10 @@ extern u32 DustPatternLength;   // length of patterns for dust to look for
 extern f32 Lambda;              // for calculating bit score
 extern f32 Kappa;               // for calculating bit score
 
-extern string QueryFile;
-extern string SubjectFile;
-extern string OutputFile;
+extern string QueryFile;        // path to the query file
+extern string SubjectFile;      // path to the subject file
+extern string OutputFile;       // path and filename of the output file
 
-extern u32 OutputSpacing;
+extern u32 OutputSpacing;       // output file column spacing
 
 } // Blastn

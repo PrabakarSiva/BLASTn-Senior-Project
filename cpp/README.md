@@ -1,5 +1,7 @@
 # C++ Blastn
-Blastn implemented in C++. This implementation is designed to be the fast implementation which will interop with an FPGA implementation of the Smith-Waterman algorithm. 
+Blastn implemented in C++. This implementation is designed to be the fast implementation which will interop with an FPGA implementation of the Smith-Waterman algorithm.
+## External Libraries
+* https://github.com/greg7mdp/parallel-hashmap
 ## Building
 ### Windows
   * Open `Blastn.sln` in Visual Studio 2019.
@@ -7,6 +9,11 @@ Blastn implemented in C++. This implementation is designed to be the fast implem
     * Open project properties
     * On the top, select `Configuration: All Configurations`
     * On the top, select `Platform: All Platforms`
+    * Go to VC++ Directories
+      * Select `Include Directories -> Edit...`
+        * Click in the `New Line` button (shaped as a folder)
+        * Enter `$(ProjectDir)\include\parallel-hashmap`
+        * Click `OK` at the bottom
     * Go to `C/C++ -> Optimization`
       * Select `Optimization: Maximum Optimization (Favor Speed) (/O2)`
       * Select `Favor Size or Speed: Favor Fast Code (/Ot)`
@@ -39,4 +46,5 @@ Blastn implemented in C++. This implementation is designed to be the fast implem
 | `-lambda`      | E-value lambda constant        | `0.267`
 | `-kappa`       | E-value kappa constant         | `0.041`
 | `-spacing`     | Spacing between output columns | `6`
+| `-fpga`        | Score using an FPGA through UART | `COM4`
 | `-test`        | Expects `dust`, `extend`, `match`, `pairs`, `sequence`, `sw` or `smith waterman`, `sort`, `split` | NA

@@ -3,14 +3,20 @@
 #include <chrono>
 #include <ctime>
 
+/**
+ * Show the progress of a for loop with a Progress object
+ */
 struct Progress {
     Progress(size_t max);
-    size_t iteration = 0;
-    size_t max = 0;
+    uint32_t iteration = 0;
+    uint32_t max = 0;
 
     void update();
 };
 
+/**
+ * Record runtime with timestamps
+ */
 class Timer {
     using Clock = std::chrono::high_resolution_clock::time_point;
 public:

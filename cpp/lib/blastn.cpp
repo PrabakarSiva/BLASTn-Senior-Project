@@ -10,21 +10,21 @@ static std::string argparse(vector<string> arguments, std::string arg)
     for (size_t i = 0; i < arguments.size(); i++) {
         if (arg == arguments[i]) {
             if (i + 1 >= arguments.size()) {
-                std::cerr << "Failure: Invalid argument usage: " << arg << std::endl;
+                std::cerr << "Failure: INVALID argument usage: " << arg << std::endl;
                 std::exit(-1);
             }
             else
                 return arguments[i + 1];
         }
     }
-    return Blastn::Invalid;
+    return Blastn::INVALID;
 }
 
 int test(std::vector<std::string> args)
 {
     string a;
     a = argparse(args, "-test");
-    if (a == Blastn::Invalid) {
+    if (a == Blastn::INVALID) {
         std::cerr << "Error: Unknown test function argument." << std::endl;
         std::exit(-1);
     }
@@ -73,7 +73,7 @@ static void align(std::string query_file, std::string subject_file)
     std::cout << std::endl;
 
     // needed for E-value calculation
-    size_t subject_length = sequence_length(subject);
+    u64 subject_length = sequence_length(subject);
 
     /**
      * Dust filtering
@@ -97,7 +97,12 @@ static void align(std::string query_file, std::string subject_file)
     std::cout << std::endl;
 
     std::cout << "[8 / 11] Extending " << adjacent_pairs.size() << " paired words..." << std::endl;
-    auto extended_pairs = Blastn::extend_filter(adjacent_pairs, query, subject, Blastn::SwMatch, Blastn::SwMismatch, Blastn::SwGap, Blastn::SwRatio);
+
+    int sw_flag = SW::PRESERVE_MEM;
+    if (Blastn::UArtFPGA)
+        sw_flag = SW::FPGA;
+    
+    auto extended_pairs = Blastn::extend_filter(adjacent_pairs, query, subject, Blastn::SwMatch, Blastn::SwMismatch, Blastn::SwGap, Blastn::SwRatio, sw_flag);
     std::cout << std::endl;
 
     /**
@@ -134,46 +139,55 @@ int blastn(std::vector<std::string> args)
     string a;
 
     // files
-    if ((a = argparse(args, "-query"))       != Blastn::Invalid)
+    if ((a = argparse(args, "-query")) != Blastn::INVALID)
         Blastn::QueryFile = a;
-    if ((a = argparse(args, "-subject"))     != Blastn::Invalid)
+    if ((a = argparse(args, "-subject")) != Blastn::INVALID)
         Blastn::SubjectFile = a;
-    if ((a = argparse(args, "-out"))         != Blastn::Invalid)
+    if ((a = argparse(args, "-out")) != Blastn::INVALID)
         Blastn::OutputFile = a;
 
     // query/subject file descriptions
-    if ((a = argparse(args, "-sep"))         != Blastn::Invalid)
+    if ((a = argparse(args, "-sep")) != Blastn::INVALID)
         Blastn::Seperator = (char)a[0];
-    if ((a = argparse(args, "-word-length")) != Blastn::Invalid)
+    if ((a = argparse(args, "-word-length")) != Blastn::INVALID)
         Blastn::SplitLength = atoi(a.c_str());
     
     // smith waterman
-    if ((a = argparse(args, "-sw-minscore")) != Blastn::Invalid)
+    if ((a = argparse(args, "-sw-minscore")) != Blastn::INVALID)
         Blastn::SwMinscore = atoi(a.c_str());
-    if ((a = argparse(args, "-sw-match"))    != Blastn::Invalid)
+    if ((a = argparse(args, "-sw-match")) != Blastn::INVALID)
         Blastn::SwMatch = atoi(a.c_str());
-    if ((a = argparse(args, "-sw-mismatch")) != Blastn::Invalid)
+    if ((a = argparse(args, "-sw-mismatch")) != Blastn::INVALID)
         Blastn::SwMismatch = atoi(a.c_str());
-    if ((a = argparse(args, "-sw-gap"))      != Blastn::Invalid)
+    if ((a = argparse(args, "-sw-gap")) != Blastn::INVALID)
         Blastn::SwGap = atoi(a.c_str());
     
     Blastn::SwRatio = (f32)SwMinscore / (f32)(SplitLength * SwMatch);
 
     // dust
-    if ((a = argparse(args, "-dust-thresh")) != Blastn::Invalid)
+    if ((a = argparse(args, "-dust-thresh")) != Blastn::INVALID)
         Blastn::DustThreshold = (f32)atof(a.c_str());
-    if ((a = argparse(args, "-dust-length")) != Blastn::Invalid)
+    if ((a = argparse(args, "-dust-length")) != Blastn::INVALID)
         Blastn::DustPatternLength = atoi(a.c_str());
 
-    if ((a = argparse(args, "-lambda"))      != Blastn::Invalid)
+    if ((a = argparse(args, "-lambda")) != Blastn::INVALID)
         Blastn::Lambda = (f32)atof(a.c_str());
-    if ((a = argparse(args, "-kappa"))       != Blastn::Invalid)
+    if ((a = argparse(args, "-kappa")) != Blastn::INVALID)
         Blastn::Kappa = (f32)atof(a.c_str());
 
     // output spacing
-    if ((a = argparse(args, "-spacing")) != Blastn::Invalid)
+    if ((a = argparse(args, "-spacing")) != Blastn::INVALID)
         Blastn::OutputSpacing = atoi(a.c_str());
 
+    if ((a = argparse(args, "-fpga")) != Blastn::INVALID) {
+        Blastn::UArtFPGA = true;
+        Blastn::UArtPath = a;
+        #ifndef _WIN32
+            std::cerr << "Error: FPGA connection to UART was only designed for the Windows 10 operating system." << std::endl;
+            std::exit(-1);
+        #endif
+    }
+    
 
     align(Blastn::QueryFile, Blastn::SubjectFile);
     return 0;

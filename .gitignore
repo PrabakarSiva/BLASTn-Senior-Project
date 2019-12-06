@@ -14,8 +14,16 @@ x64/
 a.out
 blastn
 result.txt
+callgrind.out.*
+.directory
 
 *.fa.json
 *.fasta.json
 packing_table.json
 unpacking_table.json
+blastn_out.txt
+
+vivado.jou
+vivado.log
+*.str
+.Xil/

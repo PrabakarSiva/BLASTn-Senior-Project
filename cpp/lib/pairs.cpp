@@ -18,11 +18,11 @@ vector<AdjacentPair> pair(vector<MatchSingleton>& flattened, u32 query_len)
                 // not too far apart
                 && ABS(((s32)flattened[i].sindex - (s32)flattened[j].sindex)) <= (s32)query_len - (s32)flattened[i].word.size())
             {
-                result.push_back(AdjacentPair {
+                result.emplace_back(
                     flattened[i].word,   flattened[j].word,
                     flattened[i].sindex, flattened[i].qindex,
                     flattened[j].sindex, flattened[j].qindex
-                });
+                );
 
                 break;
             }
@@ -31,7 +31,7 @@ vector<AdjacentPair> pair(vector<MatchSingleton>& flattened, u32 query_len)
     return result;
 }
 
-vector<AdjacentPair> flatten(vector<Match> matches, u32 query_len)
+vector<AdjacentPair> flatten(vector<Match>& matches, u32 query_len)
 {
     vector<MatchSingleton> flattened;
 
@@ -48,11 +48,10 @@ vector<AdjacentPair> flatten(vector<Match> matches, u32 query_len)
         return lhs.sindex < rhs.sindex;
     });
 
-    vector<AdjacentPair> result = pair(flattened, query_len);
-    return result;
+    return pair(flattened, query_len);
 }
 
-PairedSequenceMap pair_filter(MatchedSequenceMap matches, SequenceMap query)
+PairedSequenceMap pair_filter(MatchedSequenceMap& matches, SequenceMap& query)
 {
     PairedSequenceMap filtered_pairs;
     Progress progress{ matches.size() };
@@ -63,8 +62,6 @@ PairedSequenceMap pair_filter(MatchedSequenceMap matches, SequenceMap query)
         PairedMatchesMap pairs;
         for (auto& qname_matches : sname_queries.second) {
             // qname not created yet in pairs
-            if (pairs.find(qname_matches.first) == pairs.end())
-                pairs[qname_matches.first] = vector<AdjacentPair>{};
             for (auto& pair : flatten(qname_matches.second, (u32)query[qname_matches.first].size())) {
                 if (ABS((s32)pair.sindex1 - (s32)pair.sindex2) <= (s32)query[qname_matches.first].size() - (s32)pair.length
                     || ABS((s32)pair.qindex1 - (s32)pair.qindex2) >= (s32)pair.length
@@ -78,8 +75,9 @@ PairedSequenceMap pair_filter(MatchedSequenceMap matches, SequenceMap query)
                             break;
                         }
                     }
+                    // vector<Pair> already exists
                     if (!found)
-                        pairs[qname_matches.first].push_back(pair);
+                        pairs[qname_matches.first].emplace_back(pair);
                 }
             }
         }
